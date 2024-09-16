@@ -1,0 +1,71 @@
+name: Update Submodule
+
+on:
+  schedule:
+    - cron: '0 * * * *'  # Runs every hour
+  workflow_dispatch:
+
+jobs:
+  update-submodule:
+    runs-on: ubuntu-latest
+
+    steps:
+      # Checkout the main repository and its submodules
+      - name: Checkout repository
+        uses: actions/checkout@v3
+        with:
+          submodules: true  # Initialize submodules
+          fetch-depth: 0     # Fetch full history to ensure we can compare commits
+          ref: dev           # Checkout the 'dev' branch
+
+      # Ensure the submodule URL is correctly configured to use HTTPS
+      - name: Ensure correct submodule URL
+        run: |
+          echo "Ensuring submodule URL is set to HTTPS..."
+          git config --file .gitmodules submodule.wormhole-docs.url https://github.com/wormhole-foundation/wormhole-docs.git
+          echo "Submodule URL ensured."
+
+      # Set up Python environment
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      # Install any dependencies (if necessary)
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      # Configure Git user identity
+      - name: Configure Git user
+        run: |
+          git config --global user.email "actions@github.com"
+          git config --global user.name "GitHub Actions"
+
+      # Check for updates in the submodule and commit if there are changes
+      - name: Check for updates in submodule
+        run: |
+          echo "Checking for submodule updates..."
+          git submodule update --init --remote
+          cd wormhole-docs
+          git fetch origin
+          echo "Fetched latest changes from submodule remote."
+          # Ensure the branch 'main' exists in the submodule
+          if [ "$(git rev-list HEAD...origin/main --count)" -ne 0 ]; then
+            echo "Updates found. Pulling latest changes..."
+            git pull origin main || exit 1  # Stop if pull fails
+            cd ..
+            git add wormhole-docs
+            git commit -m "Update wormhole-docs submodule to latest commit" || echo "No changes to commit"
+          else
+            echo "No updates found in the submodule."
+          fi
+
+      # Push any changes to the dev branch
+      - name: Push changes to dev branch
+        env:
+          GITHUB_TOKEN: ${{ secrets.PERSONAL_ACCESS_TOKEN }}  # Use PAT instead of default GITHUB_TOKEN
+        run: |
+          echo "Pushing changes to the dev branch..."
+          git push https://x-access-token:${{ secrets.PERSONAL_ACCESS_TOKEN }}@github.com/papermoonio/wormhole-mkdocs.git dev || echo "No changes to push."
