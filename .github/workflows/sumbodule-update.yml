@@ -68,4 +68,4 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.PERSONAL_ACCESS_TOKEN }}  # Use PAT instead of default GITHUB_TOKEN
         run: |
           echo "Pushing changes to the dev branch..."
-          git push https://x-access-token:${{ secrets.PERSONAL_ACCESS_TOKEN }}https://github.com/kapetan3sid/wormhole-mkdocs.git dev || echo "No changes to push."
+          git push https://x-access-token:${{ secrets.PERSONAL_ACCESS_TOKEN }}@github.com/kapetan3sid/wormhole-mkdocs.git dev || echo "No changes to push."
