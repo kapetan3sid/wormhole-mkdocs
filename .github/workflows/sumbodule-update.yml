@@ -1,4 +1,4 @@
-name: Update Submodule
+name: Update Submodule on Dev Branch
 
 on:
   schedule:
@@ -10,65 +10,60 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # Checkout the main repository and its submodules on the dev branch
-      - name: Checkout repository
+      # Checkout the 'dev' branch of the repository and its submodules
+      - name: Checkout dev branch
         uses: actions/checkout@v3
         with:
-          submodules: true  # Initialize submodules
-          fetch-depth: 0     # Fetch full history to ensure we can compare commits
-          ref: dev           # Ensure dev branch is checked out
+          ref: dev              # Ensure we are on the 'dev' branch
+          submodules: true       # Initialize submodules
+          fetch-depth: 0         # Fetch full history to ensure we can compare commits
 
-      # Ensure the submodule URL is correctly configured to use HTTPS
-      - name: Ensure correct submodule URL
-        run: |
-          echo "Ensuring submodule URL is set to HTTPS..."
-          git config --file .gitmodules submodule.wormhole-docs.url https://github.com/wormhole-foundation/wormhole-docs.git
-          echo "Submodule URL ensured."
-
-      # Set up Python environment
-      - name: Set up Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: '3.11'
-
-      # Install any dependencies (if necessary)
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
-
-      # Configure Git user identity
+      # Set up Git user identity for commits
       - name: Configure Git user
         run: |
           git config --global user.email "actions@github.com"
           git config --global user.name "GitHub Actions"
 
-      # Check for updates in the submodule and commit if there are changes
-      - name: Check for updates in submodule
+      # Fetch the latest changes from the remote submodule
+      - name: Fetch latest changes from submodule
         run: |
-          echo "Checking for submodule updates..."
-          git submodule update --init --remote
+          echo "Fetching latest changes from wormhole-docs submodule..."
           cd wormhole-docs
-          git fetch origin
-          echo "Fetched latest changes from submodule remote."
-          if [ "$(git rev-list HEAD...origin/main --count)" -ne 0 ]; then
-            echo "Updates found. Pulling latest changes..."
-            git pull origin main || exit 1  # Stop if pull fails
-            cd ..
-            git add wormhole-docs
-            git commit -m "Update wormhole-docs submodule to latest commit" || echo "No changes to commit"
-          else
-            echo "No updates found in the submodule."
-          fi
+          git fetch origin main
+          cd ..
 
-      # Check for changes in the main repository (including the submodule)
-      - name: Check for changes
+      # Compare the submodule's local HEAD to the remote HEAD
+      - name: Check if submodule is up-to-date
+        id: check_submodule
         run: |
-          git status
-          git diff --cached
+          cd wormhole-docs
+          LOCAL_COMMIT=$(git rev-parse HEAD)
+          REMOTE_COMMIT=$(git rev-parse origin/main)
+          echo "Local commit: $LOCAL_COMMIT"
+          echo "Remote commit: $REMOTE_COMMIT"
+          if [ "$LOCAL_COMMIT" != "$REMOTE_COMMIT" ]; then
+            echo "Submodule is out of date."
+            echo "::set-output name=update_needed::true"
+          else
+            echo "Submodule is up-to-date."
+            echo "::set-output name=update_needed::false"
+          fi
+          cd ..
 
-      # Push any changes to the dev branch
+      # Update the submodule if it is outdated
+      - name: Update submodule if necessary
+        if: steps.check_submodule.outputs.update_needed == 'true'
+        run: |
+          echo "Updating the submodule to the latest commit..."
+          cd wormhole-docs
+          git pull origin main
+          cd ..
+          git add wormhole-docs
+          git commit -m "Update wormhole-docs submodule to the latest commit"
+
+      # Push the updated submodule to the 'dev' branch
       - name: Push changes to dev branch
+        if: steps.check_submodule.outputs.update_needed == 'true'
         env:
           GITHUB_TOKEN: ${{ secrets.PERSONAL_ACCESS_TOKEN }}  # Use PAT instead of default GITHUB_TOKEN
         run: |
