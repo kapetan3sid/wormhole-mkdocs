@@ -10,13 +10,13 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # Checkout the main repository and its submodules
+      # Checkout the main repository and its submodules on the dev branch
       - name: Checkout repository
         uses: actions/checkout@v3
         with:
           submodules: true  # Initialize submodules
           fetch-depth: 0     # Fetch full history to ensure we can compare commits
-          ref: dev           # Checkout the 'dev' branch
+          ref: dev           # Ensure dev branch is checked out
 
       # Ensure the submodule URL is correctly configured to use HTTPS
       - name: Ensure correct submodule URL
@@ -51,7 +51,6 @@ jobs:
           cd wormhole-docs
           git fetch origin
           echo "Fetched latest changes from submodule remote."
-          # Ensure the branch 'main' exists in the submodule
           if [ "$(git rev-list HEAD...origin/main --count)" -ne 0 ]; then
             echo "Updates found. Pulling latest changes..."
             git pull origin main || exit 1  # Stop if pull fails
@@ -61,6 +60,12 @@ jobs:
           else
             echo "No updates found in the submodule."
           fi
+
+      # Check for changes in the main repository (including the submodule)
+      - name: Check for changes
+        run: |
+          git status
+          git diff --cached
 
       # Push any changes to the dev branch
       - name: Push changes to dev branch
